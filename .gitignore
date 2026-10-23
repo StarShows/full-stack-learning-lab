@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.openai/local/
+*.tar.gz
+.sites-runtime/
+.wrangler/
+.env*
+.dev.vars*
+*.sqlite
+*.sqlite-*
+outputs/

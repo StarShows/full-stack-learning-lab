@@ -1,0 +1,15 @@
+import {Worker} from 'node:worker_threads';
+import assert from 'node:assert/strict';
+import {LESSONS,UNITS} from '../src/lessons.js';
+import {newLearningState,newDraft,finishLesson,dueReviews,today} from '../src/learning-state.js';
+function check(lesson,code){return new Promise((resolve,reject)=>{const worker=new Worker(new URL('./worker-host.mjs',import.meta.url));const timer=setTimeout(()=>{worker.terminate();reject(Error('Timeout '+lesson.id));},8000);worker.once('error',reject);worker.on('message',result=>{clearTimeout(timer);worker.terminate();resolve(result);});worker.postMessage({type:'learn',lessonId:lesson.id,code});});}
+assert.equal(UNITS.length,7);assert.equal(LESSONS.length,28);assert.equal(new Set(LESSONS.map(l=>l.id)).size,28);
+let valid=0,rejected=0;
+for(const lesson of LESSONS){assert.equal(lesson.code.starter.split('___').length,2,lesson.id+' must have exactly one blank');assert(lesson.code.choices.includes(lesson.code.answer));for(const kind of ['quiz','recall']){assert(lesson[kind].options.length===3);assert(lesson[kind].options[lesson[kind].answer]);assert(lesson[kind].why.length>15);}
+ const good=await check(lesson,lesson.code.starter.replace('___',lesson.code.answer));assert.equal(good.type,'learn-result',lesson.id);assert.equal(good.passed,true,lesson.id+': '+good.error);valid++;
+ const wrong=lesson.code.choices.find(v=>v!==lesson.code.answer);const bad=await check(lesson,lesson.code.starter.replace('___',wrong));assert.equal(bad.passed,false,lesson.id+' wrongly accepted '+wrong);rejected++;
+ console.log(lesson.id+': correct code passed; common mistake rejected');
+}
+const blank=await check(LESSONS[0],LESSONS[0].code.starter);assert.equal(blank.passed,false);assert(blank.error.includes('blank'));
+const now=new Date('2026-10-22T18:00:00Z').getTime(),day=today(now);let s=newLearningState();s.activeLesson='names';s.drafts.names=newDraft(LESSONS[0]);assert.equal(finishLesson(s,'names',now),s,'Incomplete lesson must not award XP');s.drafts.names={...s.drafts.names,quizPassed:true,codePassed:true,recallPassed:true,wrongAttempts:1};s=finishLesson(s,'names',now);assert.equal(s.xp,20);assert.equal(s.days[day].length,1);assert.equal(dueReviews(s,now).length,1);assert.equal(finishLesson(s,'names',now).xp,20,'Duplicate finish must not award again');s.drafts.names={...newDraft(LESSONS[0]),quizPassed:true,codePassed:true,recallPassed:true};s=finishLesson(s,'names',now);assert.equal(s.xp,20,'Same-day repetition should not farm XP');assert.equal(s.completed.names.needsReview,false);assert.equal(dueReviews(s,now).length,0);s.drafts.names={...newDraft(LESSONS[0]),quizPassed:true,codePassed:true,recallPassed:true};s=finishLesson(s,'names',now+86400000);assert.equal(s.xp,25);assert.equal(s.days[today(now+86400000)].length,1);assert.equal(dueReviews(s,now+10*86400000).length,1);
+console.log(`Learning runner: ${valid}/28 worked answers passed, ${rejected}/28 wrong answers rejected. Progress, XP, daily uniqueness and spaced-review checks passed.`);
