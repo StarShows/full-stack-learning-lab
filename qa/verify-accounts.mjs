@@ -28,11 +28,11 @@ async function open(user,legacy,failWrites=false){const errors=[];const vc=new V
 let page=await open(null);assert(page.text().includes('Continue with Google'));assert(page.text().includes('Continue with Apple'));assert.equal(page.w.document.querySelector('a').target,'_top');assert(!page.text().includes('Start my first lesson'));page.dom.window.close();
 page=await open('charlie');assert(page.text().includes('Start my first lesson'));await page.click('Start my first lesson');await wait(900);let saved=await (await call('charlie','/api/progress/learning')).json();assert.equal(saved.state.view,'lesson');assert.equal(saved.state.activeLesson,'names');assert.deepEqual(page.errors,[]);page.dom.window.close();
 page=await open('charlie');assert(page.text().includes('Save & leave'));assert(page.text().includes('Give a value a name'));
-await page.click('Ask the local tutor');
+await page.click('Chat about this lesson');
 const question=page.w.document.querySelector('#tutor-question');
 Object.getOwnPropertyDescriptor(page.w.HTMLTextAreaElement.prototype,'value').set.call(question,'Explain const');
 question.dispatchEvent(new page.w.Event('input',{bubbles:true}));await wait(30);
-await page.click('Get a small hint');assert(page.text().includes('Use <script> as plain text, not markup.'));assert.equal(page.w.document.querySelectorAll('.local-tutor-answer script').length,0);
+await page.click('Send message');assert(page.text().includes('Use <script> as plain text, not markup.'));assert.equal(page.w.document.querySelectorAll('.local-tutor script').length,0);
 page.dom.window.close();
 const old={...newLearningState(),xp:60};page=await open('dana',old);assert(page.text().includes('Bring your earlier progress'));await page.click('Import my browser progress');assert.equal((await (await call('dana','/api/progress/learning')).json()).state.xp,60);assert.deepEqual(page.errors,[]);page.dom.window.close();
 page=await open('erin',null,true);await wait(900);assert(page.text().includes('Retry save'));page.recover();await page.click('Retry save');assert(page.text().includes('All progress saved'));assert.deepEqual(page.errors,[]);page.dom.window.close();

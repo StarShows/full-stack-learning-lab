@@ -1,0 +1,28 @@
+# Local administration
+
+Run `npm ci`, `npm run build`, then `npm run admin` in a trusted source checkout with Node 24.19+. The console listens only on IPv4 loopback port 13001. Unlock it with the random terminal token; the token expires after eight hours and changes every restart. It is kept in page memory, never local storage or a URL. Closing the console stops new operations; a remote command already submitted may continue on the server.
+
+## Wizard
+
+1. Configure the application origin, Google/Apple registration values, and either local Ollama or a token-based HTTPS model endpoint. Blank secret fields preserve existing secrets. Configuration is validated and atomically written with mode 0600. To remove a configured provider or rotate file-based secrets, edit the private `.env` deliberately, then restart. The wizard does not register cloud applications or retrieve provider credentials.
+2. Select local operations or SSH. Remote hosts must run Linux with Docker Engine, Compose v2, a TLS reverse proxy, and sufficient disk/RAM. Install these through your server's supported management process. The deployment user needs permission to its deployment directory and Docker. Docker access is effectively host administration, so dedicate that identity and protect its key.
+3. Verify configuration, run tests and builds, check server prerequisites, and inspect container health/model readiness. Local model tests are explicitly labeled and do not test a token provider. A token endpoint is acceptance-tested through lesson chat after signing in.
+4. Review and confirm each operation. Deployment builds/tests this source, transfers an explicit source archive plus private `.env` over SSH, builds and starts containers, and checks health. No arbitrary terminal command is accepted from the page. Stop/restart operations are also reviewed. Only one job runs at a time; plans expire after two minutes and can be consumed once.
+
+For SSH, independently verify the server's host-key fingerprint through your hosting console or administrator, then establish its trusted `known_hosts` entry. Load your deployment key into `ssh-agent`. The console uses `BatchMode=yes`, `StrictHostKeyChecking=yes`, disables agent forwarding, and ignores custom SSH config. Unknown or changed keys fail. Password prompts, jump-host configurations, interactive sudo and Windows destinations are unsupported.
+
+Remote preflight and lifecycle actions use the entered working directory. Before first deployment, that directory must exist and be writable by the deployment user. After deployment, use `<directory>/current` for status, health, restart, and stop; continue using the parent directory for future deployments. A release directory is unique by timestamp. The Compose project name remains fixed to preserve named database/model volumes. Deploy only one instance of this project per Docker daemon unless you deliberately adapt the Compose project name and ports.
+
+The destination needs an existing TLS reverse proxy that forwards the configured Host header to loopback port 13000. The wizard requires an HTTPS origin and at least one identity provider before remote deployment. It does not provision DNS, certificates, firewalls, OAuth applications, or operating-system packages. File-based secret paths are intentionally rejected by this deployment path because a local path cannot safely be assumed to exist on the remote host; provision those manually or use wizard-managed secret values.
+
+## Security boundaries
+
+The admin console is absent from the runtime Docker image, not merely hidden by navigation. Do not proxy, port-forward, tunnel, or publicly expose port 13001. Host, peer-address, origin, Fetch Metadata and bearer-token checks protect the local control surface. It sends restrictive CSP, no-store and frame-denial headers. The application sessions cannot authorize administration. Model output cannot invoke any administrative operation.
+
+Only trust this console on a trusted local OS account and source checkout. Same-user malware, browser extensions with local access, a compromised Docker daemon, or a compromised destination are outside its protection. Terminal access tokens, `.env`, `.admin`, SSH agent access and release directories must remain private. SSH transfers configuration directly via stdin, not command-line arguments. Configuration values are never returned by the settings API. Known inline secrets are redacted from job output. Audit entries contain action, destination hostname, time and outcome, without raw output or credentials. Audit records are local, not tamper-proof.
+
+## Recovery and verification
+
+Deployment is not atomic: a failed health check can leave new containers running even when `current` remains on an earlier release. Inspect `docker compose ps` and the host logs before retrying. Previous release directories remain for recovery; they include private configuration and should be retained or deleted under your secret-retention policy. Re-running Compose from an earlier release is safe only after reviewing database schema compatibility. Back up the database using the documented SQLite backup procedure before upgrades. Never assume reverting application code reverts a migration.
+
+Automated tests cover console authorization, origin/Host restrictions, single-use plans, private configuration permissions, secret redaction, SSH argument validation, fixed commands, chat context and token routing. Existing identity/progress/runner tests remain required. Real deployment requires acceptance testing on your server with its verified SSH identity, TLS and Google/Apple registrations. No software audit can guarantee absolute security across arbitrary hosts.

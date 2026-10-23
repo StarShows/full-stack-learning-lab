@@ -24,7 +24,7 @@ export async function createApplication({ db, config, auth: suppliedAuth, tutor:
     if (path === '/api/tutor' || path === '/api/tutor/status') {
       const user = auth.getUser(request);
       if (!user) return Response.json({ error: 'Sign in to use the local tutor.' }, { status: 401 });
-      if (path.endsWith('/status') && request.method === 'GET') return Response.json({ ready: await tutor.status(), model: config.model });
+      if (path.endsWith('/status') && request.method === 'GET') return Response.json({ ready: await tutor.status(), model: config.llmModel || config.model, local: config.llmMode !== 'token' });
       if (request.method !== 'POST' || path !== '/api/tutor') return new Response('Method not allowed', { status: 405 });
       if (request.headers.get('origin') !== config.origin || request.headers.get('sec-fetch-site') === 'cross-site') return new Response('Invalid origin', { status: 403 });
       if (!request.headers.get('content-type')?.startsWith('application/json')) return new Response('JSON required', { status: 415 });

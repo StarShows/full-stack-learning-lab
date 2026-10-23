@@ -1,6 +1,6 @@
 # Full Stack Learning Lab
 
-A self-hosted learning app with 28 guided lessons in JavaScript, React, Express, and Sequelize. It includes an optional timed practice lab, persistent per-user progress, Google and Apple sign-in, and a private local coding tutor.
+A self-hosted learning app with 28 guided lessons in JavaScript, React, Express, and Sequelize. It includes an optional timed practice lab, persistent per-user progress, Google and Apple sign-in, and a lesson-aware conversational tutor with local or token-based inference.
 
 ## Start everything with one command
 
@@ -31,7 +31,7 @@ The default CPU setup works without a GPU. Budget approximately 8 GB of free RAM
 
 ## Privacy and authentication
 
-Prompts go from the browser to your application server and then to Ollama on the same host. The inference container has no public port and joins an internal Docker network without external egress. Cloud inference is disabled. Only the temporary model downloader needs registry access. Google/Apple sign-in still requires internet access to those providers.
+In the default local mode, prompts go from the browser to your application server and then to Ollama on the same host. The inference container has no public port and joins an internal Docker network without external egress. Cloud inference is disabled in the Ollama runtime. In explicit token mode, prompts and current code are sent to the configured HTTPS provider instead; that provider’s retention and billing policies apply. Only the temporary model downloader needs registry access. Google/Apple sign-in still requires internet access to those providers.
 
 Sessions use opaque random tokens, stored as hashes in SQLite and sent in HttpOnly cookies. HTTPS deployments use Secure cookies. OAuth uses one-time, browser-bound state and nonce validation; Google also uses PKCE. Tokens are verified against the provider's signing keys, issuer, audience and expiry. Google and Apple identities are separate accounts, even if their email addresses match. Automatic email-based linking is deliberately unsupported.
 
@@ -57,6 +57,31 @@ docker compose -f compose.yaml -f compose.gpu.yaml up --build -d
 The default app port is bound to loopback. For remote access, put an HTTPS reverse proxy in front of it, preserve the original `Host` header, and set `APP_URL` to that exact HTTPS origin. Apple requires a registered HTTPS domain; localhost is not accepted. See [operations](docs/operations.md) for backups, model changes, and deployment boundaries.
 
 There is no public inference endpoint, agent gateway, hosted model SDK, or platform-specific authentication dependency. No external orchestration agent is needed for this app.
+
+## Lesson chat and model configuration
+
+Chat receives the active lesson, current code, and recent conversation. Switching lessons or clearing chat discards that conversation; chat is held in page memory and is not stored in the progress database. Model replies are untrusted plain text. The model has no deployment, shell, or file tools.
+
+Local Ollama is the default. For an operator-owned HTTPS chat-completions API, set:
+
+```dotenv
+LLM_MODE=token
+LLM_ENDPOINT=https://your-provider.example/v1/chat/completions
+LLM_MODEL=your-model-name
+LLM_TOKEN_FILE=/run/secrets/model-token
+```
+
+Alternatively set `LLM_TOKEN` privately in `.env`. No provider SDK is required. The endpoint must implement non-streaming `messages` requests and `choices[0].message.content` responses. Redirects are rejected; tokens never reach the browser. Only operators can choose endpoints. Provider credentials cover all authenticated learners, so use a dedicated restricted key and provider-side spending limits. Token mode does not automatically stop existing Ollama containers; use `docker compose up --build -d app` for an app-only deployment.
+
+## Local deployment console
+
+With Node 24.19+, dependencies installed, and your source checkout on a trusted Linux/macOS machine:
+
+```sh
+npm run admin
+```
+
+Open `http://127.0.0.1:13001` and enter the temporary terminal token. The separate console is excluded from the application image and has no route in the public app. See [the administration guide](docs/administration.md) for prerequisites, wizard steps, trust boundaries, recovery, and verification limits.
 
 ## Development and verification
 

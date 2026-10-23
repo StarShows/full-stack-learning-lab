@@ -10,3 +10,6 @@ data
 *.sqlite-*
 *.tar.gz
 coverage
+
+admin
+.admin

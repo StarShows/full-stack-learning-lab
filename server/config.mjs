@@ -29,7 +29,17 @@ export function readConfig(env = process.env) {
   }
   const model = env.OLLAMA_MODEL || 'qwen2.5-coder:3b';
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,100}$/.test(model) || (model.includes('..') || /(?:^|[:/-])cloud(?:$|[:/-])/i.test(model))) throw new Error('Invalid model name.');
+  const llmMode = env.LLM_MODE || 'local';
+  if (!['local', 'token'].includes(llmMode)) throw new Error('LLM_MODE must be local or token.');
+  let llmEndpoint = '', llmToken = '', llmModel = model;
+  if (llmMode === 'token') {
+    const endpoint = new URL(env.LLM_ENDPOINT || '');
+    if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) throw new Error('LLM_ENDPOINT must be a clean HTTPS chat completions URL.');
+    llmEndpoint = endpoint.href; llmToken = secret(env, 'LLM_TOKEN'); llmModel = env.LLM_MODEL || '';
+    if (!llmToken || !llmModel || llmModel.length > 128 || /[\r\n]/.test(llmToken)) throw new Error('Token provider requires LLM_TOKEN and LLM_MODEL.');
+  }
   return {
+    llmMode, llmEndpoint, llmToken, llmModel,
     origin: url.origin, secure: url.protocol === 'https:', google, apple,
     providers: { google: googleConfigured, apple: appleConfigured },
     dbPath: env.DATABASE_PATH || './data/lab.sqlite',

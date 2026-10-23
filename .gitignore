@@ -10,3 +10,6 @@ data/
 *.tar.gz
 coverage/
 .DS_Store
+
+.admin/
+.env.pending

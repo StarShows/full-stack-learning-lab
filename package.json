@@ -7,7 +7,8 @@
     "build": "node build.mjs",
     "start": "node --env-file-if-exists=.env server/index.mjs",
     "dev": "node --env-file-if-exists=.env server/index.mjs",
-    "test": "node --test qa/server.test.mjs && node qa/verify-accounts.mjs && node qa/verify-learning-runner.mjs && node qa/verify-runner.mjs"
+    "test": "node --test qa/server.test.mjs qa/admin.test.mjs && node qa/verify-accounts.mjs && node qa/verify-learning-runner.mjs && node qa/verify-runner.mjs",
+    "admin": "node admin/index.mjs"
   },
   "dependencies": {
     "jose": "6.2.12"
