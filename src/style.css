@@ -26,3 +26,13 @@
 .breakdown-row strong,.breakdown-row summary,.breakdown-tests strong{color:#866497}.breakdown-tests p{color:#ab7186}
 .good{color:#4b9174!important}.needs-work{color:#af647b!important}.user-app{color:#70597e}
 .modal h2{color:#6c4b7e}.modal p{color:#8b709a}
+
+/* Shared page credits, including signed-out and assessment screens. */
+.site-credits{position:relative;z-index:4;padding:22px 20px;text-align:center;font:400 12px/1.7 system-ui,sans-serif;color:#576858;background:#f5f7f1;border-top:1px solid #dfe5da;overflow-wrap:anywhere}
+.site-credits a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+.site-credits a:focus-visible{outline:2px solid currentColor;outline-offset:4px}
+body:has(.l-sidebar)>.site-credits{margin-left:244px}
+body:has(.is-lesson)>.site-credits{padding-bottom:120px}
+@media(min-width:1550px){body:has(.l-sidebar)>.site-credits{margin-left:265px}}
+@media(max-width:1200px){body:has(.l-sidebar)>.site-credits{margin-left:220px}}
+@media(max-width:760px){body:has(.l-sidebar)>.site-credits{margin-left:0}}
