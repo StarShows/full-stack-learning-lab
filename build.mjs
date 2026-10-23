@@ -15,3 +15,5 @@ await build({
 });
 await copyFile('src/index.html', 'dist/index.html');
 console.log('Built local application and isolated exercise runner.');
+
+for(const name of ['sw.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png'])await copyFile('src/'+name,'dist/'+name);

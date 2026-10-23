@@ -1,8 +1,10 @@
+import {validRhythm} from '../src/rhythm.js';
 // Identity comes from the server session resolver. Request headers cannot select a user.
 const response = (value, status=200) => Response.json(value, {status,headers:{'Cache-Control':'private, no-store','Vary':'Cookie','X-Content-Type-Options':'nosniff'}});
 export const UPSERT = `INSERT INTO user_progress (user_id, scope, state, revision, updated_at) VALUES (?, ?, ?, 1, ?) ON CONFLICT(user_id, scope) DO UPDATE SET state=excluded.state, revision=user_progress.revision+1, updated_at=excluded.updated_at WHERE user_progress.revision=? RETURNING revision, updated_at`;
 export function validState(scope, state) {
   if (!state || state.version!==1 || typeof state!=='object' || Array.isArray(state)) return false;
+  if (scope==='engagement') return validRhythm(state);
   if (scope==='learning') return state.drafts && state.completed && state.days && Number.isFinite(state.xp) && state.xp>=0 && ['home','lesson','complete','review'].includes(state.view);
   return state.files && typeof state.files==='object' && Object.values(state.files).every(v=>typeof v==='string');
 }
@@ -14,7 +16,7 @@ export async function handle(request, env, assets) {
   if(path==='/api/session' && request.method==='GET') {
    return response({user});
   }
-  const scope=path==='/api/progress/learning'?'learning':path==='/api/progress/assessment'?'assessment':null;
+  const scope=path==='/api/progress/learning'?'learning':path==='/api/progress/assessment'?'assessment':path==='/api/progress/engagement'?'engagement':null;
   if(!scope)return response({error:'Not found'},404);
   if(request.method==='GET') {
    const row=await env.DB.prepare('SELECT state, revision, updated_at FROM user_progress WHERE user_id=? AND scope=?').bind(userId,scope).first();

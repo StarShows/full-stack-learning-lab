@@ -103,3 +103,7 @@ The test suite covers signed identity-token verification, authorization-code cal
 This release is a standalone server deployment. It does not change any separately hosted copy or automatically move that copy's account data. Browser-only legacy progress can still be imported explicitly. Hosted account progress needs an authenticated export and deliberate identity mapping before migration.
 
 Original practice material only. Close the app before a real proctored assessment.
+
+## Learning rhythm
+
+Open **Learning rhythm** for contextual tips, optional sounds, calm motion and account-specific reminder suggestions. Self-hosted HTTPS deployments include opt-in Web Push with quiet hours and frequency limits. See [reminder setup and behavior](docs/reminders.md).

@@ -14,7 +14,7 @@ RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force && mkdir /
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node server ./server
 COPY --chown=node:node db ./db
-COPY --chown=node:node src/lessons.js ./src/lessons.js
+COPY --chown=node:node src/lessons.js src/rhythm.js ./src/
 COPY --chown=node:node scripts/check-health.mjs scripts/check-model.mjs ./scripts/
 USER node
 EXPOSE 13000

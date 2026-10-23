@@ -1,3 +1,4 @@
+import LearningRhythm from './learning-rhythm.jsx';
 import React, { useEffect, useState } from 'react';
 import { initializeAccount, accountSnapshot, subscribe, flush, canImport, importLegacy } from './account-progress.js';
 import './account.css';
@@ -34,7 +35,7 @@ export function AccountGate({ children }) {
     <small>Your progress stays on this server. Tutor requests run on its local model.</small>
   </main>;
   if (migration) return <main className="account-gate"><span className="account-logo">✓</span><h1>Bring your earlier progress?</h1><p>This browser has progress from before account saving was added. Import it only if it belongs to you. Existing account progress will be kept.</p>{error && <p role="alert">{error}</p>}<button className="account-primary" onClick={async () => { await importLegacy();if (accountSnapshot().status === 'error') setError(accountSnapshot().failure);else setMigration(false); }}>Import my browser progress</button><button onClick={() => setMigration(false)}>Continue without importing</button><small>Browser progress stays available if you skip.</small></main>;
-  return <><AccountBar />{children}</>;
+  return <><AccountBar /><LearningRhythm />{children}</>;
 }
 function AccountBar() {
   const [, render] = useState(0);
@@ -43,7 +44,8 @@ function AccountBar() {
   const { user, status, failure, conflict } = accountSnapshot();
   const pending = status === 'saving' || status === 'error';
   async function logout() {
-    try { const response = await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });if (!response.ok) throw Error();location.assign('/'); }
+    try { const reg=await navigator.serviceWorker?.getRegistration('/');const sub=await reg?.pushManager?.getSubscription();if(sub){const removed=await fetch('/api/reminders/subscribe',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:sub.endpoint})});if(!removed.ok)throw Error();await sub.unsubscribe();}
+      const response = await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });if (!response.ok) throw Error();location.assign('/'); }
     catch { setError('Sign-out failed. Please retry.'); }
   }
   return <div className={'account-bar ' + (status === 'error' ? 'account-error' : '')}>

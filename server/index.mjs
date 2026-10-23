@@ -1,3 +1,4 @@
+import {createReminders} from './reminders.mjs';
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { readConfig } from './config.mjs';
@@ -8,7 +9,8 @@ import { createRateLimiter } from './rate-limit.mjs';
 export async function startServer(config = readConfig()) {
   process.umask(0o077);
   const db = openDatabase(config.dbPath);
-  const application = await createApplication({ db, config });
+  const reminders=createReminders({db,config});
+  const application = await createApplication({ db, config, reminders });
   const generalLimit = createRateLimiter();
   const authLimit = createRateLimiter({ maximum: 20 });
   const server = http.createServer(async (incoming, outgoing) => {
@@ -46,7 +48,8 @@ export async function startServer(config = readConfig()) {
   });
   server.requestTimeout = 30000;server.headersTimeout = 10000;server.maxHeadersCount = 60;
   await new Promise((resolve, reject) => { server.once('error', reject);server.listen(config.port, config.host, resolve); });
-  return { server, db, async close() { server.closeIdleConnections();await new Promise(resolve => server.close(resolve));db.close(); } };
+  reminders.start();
+  return { server, db, async close() { await reminders.close(); server.closeIdleConnections();await new Promise(resolve => server.close(resolve));db.close(); } };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const app = await startServer();

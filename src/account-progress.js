@@ -1,4 +1,4 @@
-const KEYS={learning:'alex-fullstack-learn-v1',assessment:'alex-fullstack-lab-v1'};
+const KEYS={learning:'alex-fullstack-learn-v1',assessment:'alex-fullstack-lab-v1',engagement:'alex-fullstack-rhythm-v1'};
 let user=null,status='loading',failure='',conflict=false,timer,running=false;
 const docs={},listeners=new Set();
 const emit=()=>listeners.forEach(fn=>fn());

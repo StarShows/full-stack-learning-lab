@@ -5,13 +5,14 @@ import { progressAdapter } from './database.mjs';
 import { handle as progress } from './progress.mjs';
 
 const defaultCsp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' https://accounts.google.com https://appleid.apple.com";
-export async function createApplication({ db, config, auth: suppliedAuth, tutor: suppliedTutor, dist = new URL('../dist/', import.meta.url) }) {
+export async function createApplication({ db, config, auth: suppliedAuth, tutor: suppliedTutor, reminders, dist = new URL('../dist/', import.meta.url) }) {
   const auth = suppliedAuth || createAuth({ db, config });
   const tutor = suppliedTutor || createTutor({ config });
   const assets = {};
-  for (const [path, file, type] of [['/', 'index.html', 'text/html; charset=utf-8'], ['/app.js', 'app.js', 'text/javascript; charset=utf-8'], ['/app.css', 'app.css', 'text/css; charset=utf-8'], ['/runner.js', 'runner.js', 'text/javascript; charset=utf-8']]) {
+  for (const [path, file, type] of [['/', 'index.html', 'text/html; charset=utf-8'], ['/app.js', 'app.js', 'text/javascript; charset=utf-8'], ['/app.css', 'app.css', 'text/css; charset=utf-8'], ['/runner.js', 'runner.js', 'text/javascript; charset=utf-8'], ['/sw.js','sw.js','text/javascript; charset=utf-8'], ['/manifest.webmanifest','manifest.webmanifest','application/manifest+json'], ['/icon.svg','icon.svg','image/svg+xml']]) {
     assets[path] = { body: await readFile(new URL(file, dist), 'utf8'), type };
   }
+  for(const size of [192,512]) assets['/icon-'+size+'.png']={body:await readFile(new URL('icon-'+size+'.png',dist)),type:'image/png'};
   const env = { DB: progressAdapter(db), getUser: request => auth.getUser(request) };
   async function route(request) {
     const path = new URL(request.url).pathname;
@@ -20,6 +21,7 @@ export async function createApplication({ db, config, auth: suppliedAuth, tutor:
       if (path.endsWith('ready')) db.prepare('SELECT 1').get();
       return Response.json({ ok: true });
     }
+    if (path.startsWith('/api/reminders/')) return reminders ? reminders.handle(request, auth.getUser(request)) : Response.json({available:false});
     if (path.startsWith('/auth/')) return await auth.handle(request) || new Response('Not found', { status: 404 });
     if (path === '/api/tutor' || path === '/api/tutor/status') {
       const user = auth.getUser(request);

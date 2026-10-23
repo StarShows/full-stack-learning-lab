@@ -16,6 +16,9 @@ function LearningApp(){
  const worker=useRef(),runTimer=useRef(),heading=useRef(),editor=useRef(),stateRef=useRef(state);stateRef.current=state;
  const lesson=getLesson(state.activeLesson),draft=lesson?state.drafts[lesson.id]:null,unit=getUnit(state.unit),next=nextLesson(state),resume=lesson&&draft&&!draft.finished?lesson:next,reviews=dueReviews(state),completed=Object.keys(state.completed).length,dayCount=(state.days[today()]||[]).length;
  useEffect(()=>{saveProgress('learning',state);},[state]);
+ useEffect(()=>{window.dispatchEvent(new CustomEvent('learning-rhythm',{detail:{view:state.view,step:draft?.step||0}}));},[state.view,draft?.step]);
+ useEffect(()=>{if(feedback?.passed)window.dispatchEvent(new CustomEvent('learning-rhythm',{detail:{sound:'success'}}));},[feedback]);
+ useEffect(()=>{if(state.view==='complete')window.dispatchEvent(new CustomEvent('learning-rhythm',{detail:{sound:'win'}}));},[state.view]);
  useEffect(()=>{const onHash=()=>setAssessment(location.hash==='#assessment');window.addEventListener('hashchange',onHash);return()=>window.removeEventListener('hashchange',onHash);},[]);
  useEffect(()=>{heading.current?.focus({preventScroll:true});window.scrollTo?.({top:0,behavior:'instant'});},[state.view,state.activeLesson,draft?.step,assessment]);
  useEffect(()=>()=>{worker.current?.terminate();clearTimeout(runTimer.current);},[]);
