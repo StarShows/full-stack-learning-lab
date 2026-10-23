@@ -1,0 +1,4 @@
+# Optional Linux/NVIDIA acceleration. Requires the NVIDIA Container Toolkit.
+services:
+  ollama:
+    gpus: all

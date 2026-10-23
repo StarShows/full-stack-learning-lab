@@ -1,35 +1,80 @@
 # Full Stack Learning Lab
 
-A guided learning app with 28 short lessons in JavaScript, React, Express, and Sequelize, followed by an optional 60-minute practice simulation. Original practice material only. Close the app before a proctored assessment.
+A self-hosted learning app with 28 guided lessons in JavaScript, React, Express, and Sequelize. It includes an optional timed practice lab, persistent per-user progress, Google and Apple sign-in, and a private local coding tutor.
 
-## Features
+## Start everything with one command
 
-- Four-step lessons: Learn, Notice, Try, Remember.
-- Editable code, isolated behavioral tests, progressive hints, and a slow-down prompt.
-- XP, daily goals, spaced review, and resumable drafts.
-- Hosted account sign-in with no separate app password.
-- Per-user database records for learning and optional practice sessions.
-- Save indicators, retry on connection failure, and optimistic concurrency to prevent silent overwrites.
-- Explicit opt-in import of progress from the browser-only version.
+Install Docker with Compose, clone this repository, and run:
 
-## Development
+```sh
+./start.sh
+```
 
-Requires Node 24 or later. Run `npm ci`, `npm run build`, and `npm test`.
+The command builds the app, creates persistent volumes, downloads the default model once, and starts the complete stack. Open **http://localhost:13000** by default. The first download is about 1.9 GB for the model, plus container images. Later starts reuse the downloaded model and your progress.
 
-`src/` contains the React client and exercises. `worker/index.js` handles authenticated APIs and serves bundled assets. `db/schema.ts` defines the database schema, and `drizzle/` holds immutable migrations. Run `npm run db:generate` after changing the schema. Migrations must be applied before starting the Worker.
+The script creates a private `.env` from `.env.example` on the first run. You must configure Google and/or Apple developer credentials in that file to enable sign-in. The app never substitutes a fake login when credentials are missing. Both provider buttons are shown; unconfigured providers are disabled with an explanation.
 
-## Hosting contract
+**One command starts the software. It cannot register OAuth clients or obtain developer-account credentials for you.** Follow [authentication setup](docs/authentication.md), then run the same command again.
 
-The Worker expects a D1 binding named `DB`. The hosting gateway authenticates visitors and supplies the trusted user identity. Never expose the Worker directly behind a gateway that accepts client-supplied identity headers. Browser sign-in and sign-out use the hosting platform's routes; this app does not handle passwords or session tokens.
+## What runs locally
 
-The deployment manifest declares logical storage bindings only. Configure your own hosted project identity before deployment. A generic static host cannot run the authenticated APIs.
+| Component | Runtime | Persistence |
+| --- | --- | --- |
+| Web app, API, sessions, progress | One Node.js application container | SQLite in `lab-data` |
+| Code checks and interactive preview | Isolated browser Web Worker | Results saved to the signed-in user's progress |
+| Optional lesson tutor | Ollama with `qwen2.5-coder:3b` | Model weights in `model-data` |
+| Model provisioning | Temporary download container | Downloads into `model-data`, then exits |
 
-## Data protection
+The exercise runner is deterministic JavaScript, not an LLM. It stays separate from tutoring so grading is repeatable. The model offers small hints; it never grades submissions, executes shell commands, or accesses user accounts or files.
 
-Every progress read and write is scoped to the server-provided user ID. Write requests require the exact same-origin `Origin` header, JSON content, valid payload shape, a size limit, and the current revision. Responses containing account information are not cached. Learner code executes in a separate Worker with network access disabled by response policy.
+The default CPU setup works without a GPU. Budget approximately 8 GB of free RAM for the stack; speed depends on the host. The runtime limits Ollama to 6 GB. Use a larger model only after adjusting host resources and the configured memory limit. Docker on Apple Silicon does not expose Metal acceleration to Linux containers; fully containerized inference uses the CPU there. Native host acceleration is a separate deployment choice.
 
-No credentials, user progress, database files, environment values, build output, or development runtime state belong in version control.
+## Privacy and authentication
 
-## Verification
+Prompts go from the browser to your application server and then to Ollama on the same host. The inference container has no public port and joins an internal Docker network without external egress. Cloud inference is disabled. Only the temporary model downloader needs registry access. Google/Apple sign-in still requires internet access to those providers.
 
-`npm test` checks anonymous access rejection, user isolation, reload persistence, concurrent writes, request origin and payload validation, sign-in UI, legacy import, save retry, and lesson behavior.
+Sessions use opaque random tokens, stored as hashes in SQLite and sent in HttpOnly cookies. HTTPS deployments use Secure cookies. OAuth uses one-time, browser-bound state and nonce validation; Google also uses PKCE. Tokens are verified against the provider's signing keys, issuer, audience and expiry. Google and Apple identities are separate accounts, even if their email addresses match. Automatic email-based linking is deliberately unsupported.
+
+Every progress operation uses the authenticated session. Writes enforce same-origin requests, bounded JSON bodies, and revision checks that reject stale updates. Tutor requests are authenticated, bounded, rate-limited, limited to two concurrent generations, and time out after three minutes. Model text is rendered as plain text.
+
+## Operating the stack
+
+```sh
+# Status and logs
+docker compose ps
+docker compose logs --tail=100 app ollama
+
+# Stop without deleting progress or models
+docker compose down
+
+# Start again or rebuild after updating source
+./start.sh
+
+# Optional Linux/NVIDIA GPU, after installing the NVIDIA Container Toolkit
+docker compose -f compose.yaml -f compose.gpu.yaml up --build -d
+```
+
+The default app port is bound to loopback. For remote access, put an HTTPS reverse proxy in front of it, preserve the original `Host` header, and set `APP_URL` to that exact HTTPS origin. Apple requires a registered HTTPS domain; localhost is not accepted. See [operations](docs/operations.md) for backups, model changes, and deployment boundaries.
+
+There is no public inference endpoint, agent gateway, hosted model SDK, or platform-specific authentication dependency. No external orchestration agent is needed for this app.
+
+## Development and verification
+
+Requires Node.js 24.19 or later:
+
+```sh
+npm ci
+npm run build
+npm test
+npm start
+```
+
+For native Node development, set `DATABASE_PATH` and `APP_URL` in `.env`, and set `OLLAMA_URL=http://localhost:11434` if a local Ollama daemon is running. Docker overrides that address to its private service.
+
+The server uses immutable, checksummed SQL migrations in `db/migrations/`. Append a migration for schema changes; never edit an applied migration. Startup applies pending migrations transactionally before accepting traffic.
+
+The test suite covers signed identity-token verification, authorization-code callbacks, replay and browser binding, expiry, session revocation, account isolation, SQLite persistence, request limits, tutor failures, UI save/retry flows, and all lesson and practice runners. CI builds the actual container and starts the full Compose stack to smoke-test local inference. Provider tests use locally signed fixtures, not real provider credentials. Complete real Google/Apple acceptance testing after registering your own OAuth clients.
+
+This release is a standalone server deployment. It does not change any separately hosted copy or automatically move that copy's account data. Browser-only legacy progress can still be imported explicitly. Hosted account progress needs an authenticated export and deliberate identity mapping before migration.
+
+Original practice material only. Close the app before a real proctored assessment.

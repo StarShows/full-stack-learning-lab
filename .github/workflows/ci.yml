@@ -1,0 +1,51 @@
+name: Verify
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npm test
+      - run: cp .env.example .env && docker compose config --quiet
+      - run: docker build --target runtime -t learning-lab:test .
+      - name: Container startup smoke test
+        run: |
+          docker run -d --name learning-lab-smoke -p 127.0.0.1:13000:13000 --read-only --tmpfs /tmp --tmpfs /data:rw,uid=1000,gid=1000,mode=0700 --cap-drop ALL --security-opt no-new-privileges -e APP_URL=http://localhost:13000 learning-lab:test
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:13000/health/ready; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://localhost:13000/health/ready
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:13000/api/session)" = 401
+      - name: Cleanup
+        if: always()
+        run: docker rm -f learning-lab-smoke || true
+
+  inference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - run: cp .env.example .env && mkdir -p secrets
+      - name: Start the complete stack
+        run: ./start.sh
+      - name: Check the private local model
+        run: docker compose exec -T app node scripts/check-model.mjs
+      - name: Confirm no inference port is published
+        run: test -z "$(docker compose port ollama 11434)"
+      - name: Container logs
+        if: failure()
+        run: docker compose logs --tail=100
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
