@@ -30,6 +30,14 @@ The prior cPanel application root at `/home/realtorstudio/alext.io/public/sites/
 
 Reference: [Namecheap: How to work with Node.js App](https://www.namecheap.com/support/knowledgebase/article.aspx/10047/2182/how-to-work-with-nodejs-app/), [cPanel: restart via tmp/restart.txt](https://support.cpanel.net/hc/en-us/articles/1500002443862-How-to-restart-an-application-that-s-using-cPanel-s-Application-Manager), and [Passenger reverse port binding](https://www.phusionpassenger.com/docs/advanced_guides/in_depth/node/reverse_port_binding.html).
 
+## Host limitations and tutor service
+
+Namecheap shared hosting can run the **Node application** using cPanel, but its shared-hosting policy prohibits arbitrary standalone background daemons and has resource limits. Do not run a private Ollama/model process or the Docker Compose stack on shared hosting. The project's deterministic lessons, account progress and normal web routes do not need a model; **the optional tutor cannot work in its default local Ollama mode there** unless a separately hosted, authenticated inference service is configured and tested. This is an explicit parity gap, not a CI/CD failure.
+
+If you already operate an authorized private HTTPS inference gateway elsewhere, the application has `LLM_MODE=token`, `LLM_ENDPOINT`, `LLM_MODEL`, and a protected `LLM_TOKEN` environment setting. Validate its TLS trust, access controls, response limits, availability and cost or resource implications before enabling it. Do not put model keys or tokens in GitHub or browser bundles, and do not loosen the existing local model URL allowlist. See [Namecheap shared-hosting resource restrictions](https://www.namecheap.com/support/knowledgebase/article.aspx/157/22/do-you-have-any-server-resource-restrictions/).
+
+For the final `/learn` mapping, verify the registered OAuth callbacks are exactly `https://alext.io/learn/auth/google/callback` (and `https://alext.io/learn/auth/apple/callback` if Apple is enabled). OAuth identity binding and saved progress must be checked with actual logged-in users after cutover.
+
 ## GitHub repository environment
 
 In `StarShows/full-stack-learning-lab`, go to **Settings > Environments > production**. Restrict deployments to the protected `main` branch; add an independent required reviewer if available. Limit who can change the deployment configuration. Set these environment variables:
