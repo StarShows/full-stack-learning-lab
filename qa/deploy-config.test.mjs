@@ -27,6 +27,6 @@ test('cPanel startup and remote deployment scripts have safe paths', () => {
   assert.match(remote, /tmp\/restart\.txt/);
   assert.match(remote, /production-ready/);
   assert.match(remote, /\.activated/);
-  assert.match(remote, /grep -qvE/);
+  assert.match(remote, /grep -vE/);
   assert.match(startup, /current.*server/);
 });

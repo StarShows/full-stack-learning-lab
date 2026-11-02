@@ -84,7 +84,7 @@ while IFS= read -r member; do
     /*|../*|*/../*|*/..) echo "Unsafe archive path" >&2; exit 4 ;;
   esac
 done < <(tar -tzf "$incoming/release.tar.gz")
-if tar -tvzf "$incoming/release.tar.gz" | grep -qvE '^[d-]'; then
+if tar -tvzf "$incoming/release.tar.gz" | grep -vE '^[d-]' > /dev/null; then
   echo "Archive contains links or unsafe file types" >&2
   exit 4
 fi
