@@ -121,6 +121,22 @@ try {
 NODE
 chmod 600 "$backup_path"
 
+# Validate a disposable copy against the target release migrations before touching production.
+compat_path="$state_root/backups/validate-$release_id.sqlite"
+cp "$backup_path" "$compat_path"
+chmod 600 "$compat_path"
+node --input-type=module - "$compat_path" "$release/server/database.mjs" <<'NODE'
+import { pathToFileURL } from 'node:url';
+const { openDatabase } = await import(pathToFileURL(process.argv[3]).href);
+const db = openDatabase(process.argv[2]);
+try {
+  if (db.prepare('PRAGMA integrity_check').get().integrity_check !== 'ok') {
+    throw new Error('Database integrity verification failed.');
+  }
+} finally { db.close(); }
+NODE
+rm -f "$compat_path" "$compat_path-wal" "$compat_path-shm"
+
 # Set up our own Passenger entry point only after the database backup succeeds.
 if [[ ! -e "$app_root/app.js" ]]; then
   install -m 600 "$release/scripts/deploy/passenger-app.js" "$app_root/app.js"

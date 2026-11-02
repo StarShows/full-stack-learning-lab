@@ -16,6 +16,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run build
       - run: npm test
+      - run: bash -n scripts/deploy/namecheap-remote.sh && node --check scripts/deploy/passenger-app.js
       - run: cp .env.example .env && docker compose config --quiet
       - run: docker build --target runtime -t learning-lab:test .
       - name: Container startup smoke test

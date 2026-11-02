@@ -101,7 +101,7 @@ jobs:
           set -euo pipefail
           [[ "$GITHUB_REF" == refs/heads/main ]]
           [[ "$SSH_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
-          [[ "$SSH_USER" == realtorstudio || "$SSH_USER" == realtorstudio ]]
+          [[ "$SSH_USER" == realtorstudio ]]
           [[ "$SSH_PORT" =~ ^[0-9]{1,5}$ ]]
           (( 10#$SSH_PORT > 0 && 10#$SSH_PORT <= 65535 ))
           [[ "$RELEASE_ID" =~ ^[0-9]+-[0-9]+$ ]]
@@ -168,6 +168,10 @@ jobs:
           done
           curl --fail --silent --show-error --max-time 15 https://alext.io/learn/health/ready | grep -q '"ok":true'
           [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 https://alext.io/learn/api/session)" == 401 ]]
+          curl --fail --silent --show-error --max-time 15 https://alext.io/learn/ -o "$RUNNER_TEMP/learn-home.html"
+          grep -q 'name="app-base-path" content="/learn"' "$RUNNER_TEMP/learn-home.html"
+          grep -q 'src="/learn/app.js"' "$RUNNER_TEMP/learn-home.html"
+          [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 https://alext.io/learn/runner.js)" == 200 ]]
       - name: Restore previous application if activation smoke test fails
         if: ${{ failure() && env.OPERATION == 'deploy' && steps.remote.outcome == 'success' && steps.remote.outputs.previous != '' && steps.remote.outputs.previous != 'none' }}
         shell: bash

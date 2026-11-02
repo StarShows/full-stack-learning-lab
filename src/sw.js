@@ -8,7 +8,8 @@ self.addEventListener('push',event=>{
 self.addEventListener('notificationclick',event=>{
  event.notification.close();
  event.waitUntil((async()=>{const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
-  for(const client of windows){if(new URL(client.url).origin===self.location.origin){await client.focus();return;}}
-  await self.clients.openWindow('/');
+  const scopePath=new URL(self.registration.scope).pathname;
+  for(const client of windows){const url=new URL(client.url);if(url.origin===self.location.origin&&url.pathname.startsWith(scopePath)){await client.focus();return;}}
+  await self.clients.openWindow(scopePath);
  })());
 });
