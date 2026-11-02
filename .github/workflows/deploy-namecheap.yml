@@ -1,0 +1,180 @@
+name: Deploy Learning Lab to Namecheap
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deploy-namecheap.yml
+      - package.json
+      - package-lock.json
+      - server/**
+      - db/**
+      - src/**
+      - scripts/deploy/**
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Stage only, deploy approved release, or roll back'
+        type: choice
+        options: [stage, deploy, rollback]
+        default: stage
+        required: true
+      rollback_id:
+        description: 'For rollback: immutable release ID (e.g. 123456789-1)'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: full-stack-learning-lab-namecheap
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event_name == 'push' || inputs.operation != 'rollback'
+    name: Build, test, and package
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Use Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Build and verify application
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm run build
+          npm test
+          bash -n scripts/deploy/namecheap-remote.sh
+          node --check scripts/deploy/passenger-app.js
+          npm audit --omit=dev --audit-level=high
+      - name: Produce explicit, secret-free runtime artifact
+        run: |
+          set -euo pipefail
+          tar -czf "$RUNNER_TEMP/release.tar.gz" \
+            package.json package-lock.json dist/ server/ db/ \
+            src/rhythm.js src/lessons.js scripts/deploy/passenger-app.js
+          (cd "$RUNNER_TEMP" && sha256sum release.tar.gz > release.tar.gz.sha256)
+      - name: Store immutable release artifact
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: namecheap-learning-lab-release
+          path: |
+            ${{ runner.temp }}/release.tar.gz
+            ${{ runner.temp }}/release.tar.gz.sha256
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: ${{ always() && github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && (inputs.operation == 'rollback' || needs.build.result == 'success')) || (github.event_name == 'push' && needs.build.result == 'success' && vars.NC_LAB_AUTO_DEPLOY == 'true')) }}
+    name: Release through verified SSH
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    environment:
+      name: production
+      url: https://alext.io/learn/
+    env:
+      SSH_HOST: ${{ vars.NC_LAB_SSH_HOST }}
+      SSH_USER: ${{ vars.NC_LAB_SSH_USER }}
+      SSH_PORT: ${{ vars.NC_LAB_SSH_PORT }}
+      ACTIVATE_ENABLED: ${{ vars.NC_LAB_ACTIVATE_ENABLED }}
+      OPERATION: ${{ github.event_name == 'push' && 'deploy' || inputs.operation }}
+      RELEASE_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback' && inputs.rollback_id || format('{0}-{1}', github.run_id, github.run_attempt) }}
+    steps:
+      - name: Checkout reviewed remote script
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]]
+          [[ "$SSH_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ "$SSH_USER" == realtorstudio || "$SSH_USER" == realtorstudio ]]
+          [[ "$SSH_PORT" =~ ^[0-9]{1,5}$ ]]
+          (( 10#$SSH_PORT > 0 && 10#$SSH_PORT <= 65535 ))
+          [[ "$RELEASE_ID" =~ ^[0-9]+-[0-9]+$ ]]
+          [[ "$OPERATION" =~ ^(stage|deploy|rollback)$ ]]
+          if [[ "$OPERATION" == deploy && "$ACTIVATE_ENABLED" != true ]]; then
+            echo "Production activation is disabled. Run stage, then verify cPanel and data before enabling." >&2
+            exit 1
+          fi
+      - name: Download only this workflow's verified artifact
+        if: env.OPERATION != 'rollback'
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: namecheap-learning-lab-release
+          path: ${{ runner.temp }}/release
+      - name: Verify artifact checksum before transfer
+        if: env.OPERATION != 'rollback'
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd "$RUNNER_TEMP/release" && sha256sum -c release.tar.gz.sha256)
+      - name: Configure SSH with pinned host key
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.NC_LAB_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.NC_LAB_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ -n "$SSH_KEY" && -n "$KNOWN_HOSTS" ]] || { echo "SSH credentials not configured" >&2; exit 1; }
+          umask 077
+          mkdir -p "$RUNNER_TEMP/learn-ssh"
+          printf '%s\n' "$SSH_KEY" > "$RUNNER_TEMP/learn-ssh/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/learn-ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/learn-ssh/key" "$RUNNER_TEMP/learn-ssh/known_hosts"
+      - name: Upload the release archive to private staging
+        if: env.OPERATION != 'rollback'
+        shell: bash
+        run: |
+          set -euo pipefail
+          SSH_OPTS=(-i "$RUNNER_TEMP/learn-ssh/key" -p "$SSH_PORT" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/learn-ssh/known_hosts" -o BatchMode=yes -o PasswordAuthentication=no -o ForwardAgent=no)
+          SCP_OPTS=(-i "$RUNNER_TEMP/learn-ssh/key" -P "$SSH_PORT" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/learn-ssh/known_hosts" -o BatchMode=yes -o PasswordAuthentication=no -o ForwardAgent=no)
+          remote="$SSH_USER@$SSH_HOST"
+          ssh -T "${SSH_OPTS[@]}" "$remote" "umask 077 && mkdir -p \"\$HOME/.learning-lab/incoming/$RELEASE_ID\""
+          scp "${SCP_OPTS[@]}" "$RUNNER_TEMP/release/release.tar.gz" "$RUNNER_TEMP/release/release.tar.gz.sha256" "$remote:.learning-lab/incoming/$RELEASE_ID/"
+      - name: Install, activate, or roll back on Namecheap
+        id: remote
+        shell: bash
+        run: |
+          set -euo pipefail
+          SSH_OPTS=(-i "$RUNNER_TEMP/learn-ssh/key" -p "$SSH_PORT" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/learn-ssh/known_hosts" -o BatchMode=yes -o PasswordAuthentication=no -o ForwardAgent=no)
+          remote="$SSH_USER@$SSH_HOST"
+          output="$(ssh -T "${SSH_OPTS[@]}" "$remote" bash -s -- "$OPERATION" "$RELEASE_ID" < scripts/deploy/namecheap-remote.sh)"
+          printf '%s\n' "$output"
+          previous="$(printf '%s\n' "$output" | sed -n 's/^PREVIOUS_RELEASE=//p' | tail -n 1)"
+          [[ -z "$previous" || "$previous" == none || "$previous" =~ ^[0-9]+-[0-9]+$ ]]
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
+      - name: Verify public HTTPS readiness and session isolation
+        if: env.OPERATION != 'stage'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6; do
+            if curl --fail --silent --show-error --max-time 10 https://alext.io/learn/health/ready | grep -q '"ok":true'; then break; fi
+            sleep 5
+          done
+          curl --fail --silent --show-error --max-time 15 https://alext.io/learn/health/ready | grep -q '"ok":true'
+          [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 https://alext.io/learn/api/session)" == 401 ]]
+      - name: Restore previous application if activation smoke test fails
+        if: ${{ failure() && env.OPERATION == 'deploy' && steps.remote.outcome == 'success' && steps.remote.outputs.previous != '' && steps.remote.outputs.previous != 'none' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          SSH_OPTS=(-i "$RUNNER_TEMP/learn-ssh/key" -p "$SSH_PORT" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/learn-ssh/known_hosts" -o BatchMode=yes -o PasswordAuthentication=no -o ForwardAgent=no)
+          ssh -T "${SSH_OPTS[@]}" "$SSH_USER@$SSH_HOST" bash -s -- rollback "${{ steps.remote.outputs.previous }}" < scripts/deploy/namecheap-remote.sh
+      - name: Remove temporary SSH material
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/learn-ssh"
