@@ -51,8 +51,12 @@ switch_release() {
 }
 
 if [[ "$operation" == "rollback" ]]; then
+  [[ -f "$state_root/production-ready" ]] || { echo "Production has not been activated" >&2; exit 5; }
   previous="$(current_release)"
-  [[ "$previous" != "$release_id" ]] || { echo "Already on requested release" >&2; exit 3; }
+  [[ "$previous" =~ ^[0-9]+-[0-9]+$ && "$previous" != "$release_id" ]] ||
+    { echo "A different currently activated version is required for rollback" >&2; exit 5; }
+  [[ -f "$release_root/$release_id/.activated" ]] ||
+    { echo "Rollback target was never activated; refusing to switch to staged code" >&2; exit 5; }
   switch_release "$release_id"
   printf 'ROLLED_BACK_FROM=%s\n' "$previous"
   printf 'ACTIVE_RELEASE=%s\n' "$release_id"
@@ -80,6 +84,10 @@ while IFS= read -r member; do
     /*|../*|*/../*|*/..) echo "Unsafe archive path" >&2; exit 4 ;;
   esac
 done < <(tar -tzf "$incoming/release.tar.gz")
+if tar -tvzf "$incoming/release.tar.gz" | grep -qvE '^[d-]'; then
+  echo "Archive contains links or unsafe file types" >&2
+  exit 4
+fi
 mkdir -m 700 "$release"
 tar -xzf "$incoming/release.tar.gz" --no-same-owner --no-same-permissions -C "$release"
 [[ -f "$release/package-lock.json" && -f "$release/server/index.mjs" &&
@@ -142,6 +150,7 @@ if [[ ! -e "$app_root/app.js" ]]; then
   install -m 600 "$release/scripts/deploy/passenger-app.js" "$app_root/app.js"
 fi
 previous="$(current_release)"
+touch "$release/.activated"
 switch_release "$release_id"
 printf 'PREVIOUS_RELEASE=%s\n' "$previous"
 printf 'ACTIVE_RELEASE=%s\n' "$release_id"

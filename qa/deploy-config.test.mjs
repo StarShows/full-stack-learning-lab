@@ -26,5 +26,7 @@ test('cPanel startup and remote deployment scripts have safe paths', () => {
   assert.match(remote, /npm ci --omit=dev --ignore-scripts/);
   assert.match(remote, /tmp\/restart\.txt/);
   assert.match(remote, /production-ready/);
+  assert.match(remote, /\.activated/);
+  assert.match(remote, /grep -qvE/);
   assert.match(startup, /current.*server/);
 });

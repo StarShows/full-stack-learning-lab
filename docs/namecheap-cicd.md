@@ -39,8 +39,9 @@ In `StarShows/full-stack-learning-lab`, go to **Settings > Environments > produc
 | `NC_LAB_SSH_HOST` | Verified Namecheap SSH hostname, not guessed |
 | `NC_LAB_SSH_PORT` | Verified SSH port number |
 | `NC_LAB_SSH_USER` | `realtorstudio` |
-| `NC_LAB_AUTO_DEPLOY` | `false` until the first manual deploy and validation |
 | `NC_LAB_ACTIVATE_ENABLED` | `false` until compatibility and data migration are verified |
+
+In **Settings > Secrets and variables > Actions > Variables** (repository-level, not environment-level), set `NC_LAB_AUTO_DEPLOY=false`. GitHub evaluates a job's `if` before injecting environment-scoped variables, so this toggle must be a repository variable. Keep it false until the first production deploy and recovery drill pass.
 
 Environment **secrets** (not variables):
 
@@ -80,7 +81,7 @@ For **the first production activation**, run the workflow manually with operatio
 
 The deployment installs Node production dependencies inside a versioned release, then atomically switches the `current` symlink and touches `apps/full-stack-learning-lab/tmp/restart.txt`. Passenger notices this on the next request and reloads the process; GitHub performs an HTTPS smoke test. This does **not** restart Apache, mutate cPanel configuration, or install a new Node version.
 
-On a failed smoke test the workflow attempts to restore the previous release pointer if one exists. Manual rollback is available in **Actions**, operation `rollback`, with the last known-good release ID. Rollback switches only application code. It does **not** automatically revert SQLite schema/data; database migrations must be backward-compatible, and a restore from the saved private backup may require stopping the app and operator review.
+On a failed smoke test the workflow attempts to restore the previous release pointer if one exists. Manual rollback is available in **Actions**, operation `rollback`, with the last known-good release ID. Rollback also requires the server-side production gate, an existing active release, and an `.activated` marker written only by the reviewed deploy operation, so a merely staged release can never be activated by misusing rollback. Rollback switches only application code. It does **not** automatically revert SQLite schema/data; database migrations must be backward-compatible, and a restore from the saved private backup may require stopping the app and operator review.
 
 Release archives in GitHub expire after seven days; immutable server releases and backups remain until the owner explicitly removes them. Introduce retention once successful deployments, storage limits, and restore procedures are verified. If the first cutover fails and no previous GitHub-managed release exists, restore the original cPanel application URL/root manually instead of risking student progress.
 
