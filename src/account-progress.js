@@ -1,3 +1,4 @@
+import { appPath } from './base-path.js';
 const KEYS={learning:'alex-fullstack-learn-v1',assessment:'alex-fullstack-lab-v1',engagement:'alex-fullstack-rhythm-v1'};
 let user=null,status='loading',failure='',conflict=false,timer,running=false;
 const docs={},listeners=new Set();
@@ -6,9 +7,9 @@ export const subscribe=fn=>{listeners.add(fn);return()=>listeners.delete(fn);};
 export const accountSnapshot=()=>({user,status,failure,conflict});
 export function loadProgress(scope){return docs[scope]?.state||null;}
 export function saveProgress(scope,state){const doc=docs[scope];if(!doc)return;const raw=JSON.stringify(state);if(raw===JSON.stringify(doc.state))return;doc.state=state;doc.dirty=true;status='saving';emit();clearTimeout(timer);timer=setTimeout(flush,650);}
-async function request(path,options){const r=await fetch(path,{credentials:'same-origin',cache:'no-store',...options});let body;try{body=await r.json();}catch{body={};}if(!r.ok){const e=Error(body.error||'Could not reach your account.');e.status=r.status;throw e;}return body;}
+async function request(path,options){const r=await fetch(appPath(path),{credentials:'same-origin',cache:'no-store',...options});let body;try{body=await r.json();}catch{body={};}if(!r.ok){const e=Error(body.error||'Could not reach your account.');e.status=r.status;throw e;}return body;}
 export async function initializeAccount(){
- const session=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});
+ const session=await fetch(appPath('/api/session'),{credentials:'same-origin',cache:'no-store'});
  if(session.status===401){status='signed-out';emit();return false;}
  if(!session.ok)throw Error('Could not load your account. Please retry.');
  user=(await session.json()).user;

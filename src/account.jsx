@@ -1,3 +1,4 @@
+import { appPath } from './base-path.js';
 import LearningRhythm from './learning-rhythm.jsx';
 import React, { useEffect, useState } from 'react';
 import { initializeAccount, accountSnapshot, subscribe, flush, canImport, importLegacy } from './account-progress.js';
@@ -15,7 +16,7 @@ export function AccountGate({ children }) {
         if (canImport()) setMigration(true);
         setPhase('ready');
       } else {
-        const response = await fetch('/auth/providers', { credentials: 'same-origin', cache: 'no-store' });
+        const response = await fetch(appPath('/auth/providers'), { credentials: 'same-origin', cache: 'no-store' });
         if (!response.ok) throw Error('Could not load sign-in options. Please retry.');
         setProviders(await response.json());setPhase('signed-out');
         if (new URLSearchParams(location.search).has('auth_error')) setError('Sign-in did not finish. Please try again.');
@@ -29,7 +30,7 @@ export function AccountGate({ children }) {
     <p>{phase === 'loading' ? 'Opening your account securely.' : 'Sign in with Google or Apple to save your lessons, code, XP and practice sessions. No extra password to remember.'}</p>
     {error && <p role="alert">{error}</p>}
     {phase === 'signed-out' ? <div className="account-providers">
-      {['google', 'apple'].map(provider => providers[provider] ? <a key={provider} className={'account-primary ' + provider} href={'/auth/' + provider} target="_top">Continue with {provider === 'google' ? 'Google' : 'Apple'} <span>→</span></a> : <button key={provider} disabled>Continue with {provider === 'google' ? 'Google' : 'Apple'} <small>Not configured</small></button>)}
+      {['google', 'apple'].map(provider => providers[provider] ? <a key={provider} className={'account-primary ' + provider} href={appPath('/auth/' + provider)} target="_top">Continue with {provider === 'google' ? 'Google' : 'Apple'} <span>→</span></a> : <button key={provider} disabled>Continue with {provider === 'google' ? 'Google' : 'Apple'} <small>Not configured</small></button>)}
       {(!providers.google || !providers.apple) && <small>The administrator must configure each sign-in provider before it can be used.</small>}
     </div> : phase === 'error' ? <button className="account-primary" onClick={start}>Try again</button> : <span className="account-loading" />}
     <small>Your progress stays on this server. Tutor requests run on its local model.</small>
@@ -44,8 +45,8 @@ function AccountBar() {
   const { user, status, failure, conflict } = accountSnapshot();
   const pending = status === 'saving' || status === 'error';
   async function logout() {
-    try { const reg=await navigator.serviceWorker?.getRegistration('/');const sub=await reg?.pushManager?.getSubscription();if(sub){const removed=await fetch('/api/reminders/subscribe',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:sub.endpoint})});if(!removed.ok)throw Error();await sub.unsubscribe();}
-      const response = await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });if (!response.ok) throw Error();location.assign('/'); }
+    try { const reg=await navigator.serviceWorker?.getRegistration(appPath('/'));const sub=await reg?.pushManager?.getSubscription();if(sub){const removed=await fetch(appPath('/api/reminders/subscribe'),{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:sub.endpoint})});if(!removed.ok)throw Error();await sub.unsubscribe();}
+      const response = await fetch(appPath('/auth/logout'), { method: 'POST', credentials: 'same-origin' });if (!response.ok) throw Error();location.assign(appPath('/')); }
     catch { setError('Sign-out failed. Please retry.'); }
   }
   return <div className={'account-bar ' + (status === 'error' ? 'account-error' : '')}>

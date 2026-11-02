@@ -1,3 +1,4 @@
+import { appPath } from './base-path.js';
 import LocalTutor from './local-tutor.jsx';
 import {AccountGate} from './account.jsx';
 import {saveProgress,accountSnapshot} from './account-progress.js';
@@ -32,7 +33,7 @@ function LearningApp(){
  function checkAnswer(){const kind=draft.step===1?'quiz':'recall',q=lesson[kind],selected=draft[kind+'Selection'];if(selected===null)return;const ok=selected===q.answer;updateDraft({[kind+'Passed']:ok,attempts:draft.attempts+1,wrongAttempts:draft.wrongAttempts+(ok?0:1)});setFeedback({passed:ok,title:ok?'Exactly. Here’s why.':'Let’s look at this together.',message:ok?q.why:(q.wrong?.[selected]||q.wrong?.[0]||q.why)});}
  function setCode(value){updateDraft({code:value,codePassed:false});setFeedback(null);}
  function insert(value){if(!draft.code.includes('___'))return;setCode(draft.code.replace('___',value));}
- function checkCode(){if(busy)return;setBusy(true);setFeedback(null);const id=lesson.id,code=draft.code,w=new Worker('/runner.js');worker.current=w;let done=false;
+ function checkCode(){if(busy)return;setBusy(true);setFeedback(null);const id=lesson.id,code=draft.code,w=new Worker(appPath('/runner.js'));worker.current=w;let done=false;
   const complete=result=>{if(done)return;done=true;clearTimeout(runTimer.current);w.terminate();worker.current=null;setBusy(false);if(stateRef.current.activeLesson!==id||stateRef.current.view!=='lesson')return;setState(p=>{const d=p.drafts[id];return{...p,drafts:{...p.drafts,[id]:{...d,codePassed:result.passed,attempts:d.attempts+1,wrongAttempts:d.wrongAttempts+(result.passed?0:1)}}};});setFeedback({passed:result.passed,title:result.passed?'Your code works.':'One small adjustment.',message:result.passed?lesson.takeaway:result.error,output:result.passed?result.output:null});};
   runTimer.current=setTimeout(()=>complete({passed:false,error:'The code took too long to finish. Check for a loop or a promise that never resolves, then try again.'}),8000);
   w.onmessage=e=>{if(e.data.type==='learn-result')complete(e.data);else if(e.data.type==='error')complete({passed:false,error:e.data.error});};w.onerror=e=>complete({passed:false,error:e.message||'The code runner could not start. Your work is saved; try again.'});w.postMessage({type:'learn',lessonId:id,code});
