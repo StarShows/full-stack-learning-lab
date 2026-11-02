@@ -20,7 +20,8 @@ test('Namecheap workflow is valid YAML, read-only and main-branch gated', () => 
 test('cPanel startup and remote deployment scripts have safe paths', () => {
   const remote = readFileSync(new URL('../scripts/deploy/namecheap-remote.sh', import.meta.url), 'utf8');
   const startup = readFileSync(new URL('../scripts/deploy/passenger-app.js', import.meta.url), 'utf8');
-  assert.match(remote, /\.learning-lab\/backups/);
+  assert.ok(remote.includes('state_root="$HOME/.learning-lab"'));
+  assert.ok(remote.includes('"$state_root/backups"'));
   assert.match(remote, /sha256sum -c/);
   assert.match(remote, /npm ci --omit=dev --ignore-scripts/);
   assert.match(remote, /tmp\/restart\.txt/);

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { request as httpRequest } from 'node:http';
 import { readConfig } from '../server/config.mjs';
 import { startServer } from '../server/index.mjs';
 
@@ -16,8 +17,26 @@ test('the same application serves pages, API and assets at /learn', async () => 
     };
     app = await startServer(config);
     const port = app.server.address().port;
-    const request = path => fetch('http://127.0.0.1:' + port + path, {
-      headers: { host: 'alext.io' }, signal: AbortSignal.timeout(5000)
+    // Node's raw HTTP client preserves the explicit Host header while connecting to loopback.
+    // This keeps production host validation enabled during the integration test.
+    const request = path => new Promise((resolve, reject) => {
+      const req = httpRequest({ hostname: '127.0.0.1', port, path, method: 'GET',
+        headers: { Host: 'alext.io' } }, response => {
+        const chunks = [];
+        response.on('data', chunk => chunks.push(chunk));
+        response.once('error', reject);
+        response.once('end', () => {
+          const body = Buffer.concat(chunks).toString('utf8');
+          resolve({
+            status: response.statusCode,
+            text: async () => body,
+            json: async () => JSON.parse(body)
+          });
+        });
+      });
+      req.once('error', reject);
+      req.setTimeout(5000, () => req.destroy(new Error('Timed out')));
+      req.end();
     });
     const homepage = await request('/learn/');
     assert.equal(homepage.status, 200);
