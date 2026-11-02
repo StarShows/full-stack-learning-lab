@@ -13,6 +13,15 @@ export async function createApplication({ db, config, auth: suppliedAuth, tutor:
     assets[path] = { body: await readFile(new URL(file, dist), 'utf8'), type };
   }
   for(const size of [192,512]) assets['/icon-'+size+'.png']={body:await readFile(new URL('icon-'+size+'.png',dist)),type:'image/png'};
+  // Public asset URLs are prefixed; server-side routes remain relative to this app.
+  const prefix = config.basePath || '';
+  assets['/'].body = assets['/'].body.replaceAll('__APP_BASE_PATH__', prefix);
+  const manifest = JSON.parse(assets['/manifest.webmanifest'].body);
+  manifest.id = prefix + '/';
+  manifest.start_url = prefix + '/';
+  manifest.scope = prefix + '/';
+  manifest.icons = manifest.icons.map(icon => ({ ...icon, src: prefix + icon.src }));
+  assets['/manifest.webmanifest'].body = JSON.stringify(manifest);
   const env = { DB: progressAdapter(db), getUser: request => auth.getUser(request) };
   async function route(request) {
     const path = new URL(request.url).pathname;
