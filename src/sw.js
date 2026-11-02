@@ -2,7 +2,7 @@
 self.addEventListener('push',event=>{
  event.waitUntil(self.registration.showNotification('One small step, whenever you’re ready.',{
   body:'A five-minute lesson or a quick review is here for you. No catching up required.',
-  icon:'/icon-192.png',badge:'/icon-192.png',tag:'learning-reminder',renotify:false,silent:true,data:{url:'/'}
+  icon:new URL('icon-192.png',self.registration.scope).pathname,badge:new URL('icon-192.png',self.registration.scope).pathname,tag:'learning-reminder',renotify:false,silent:true,data:{url:new URL(self.registration.scope).pathname}
  }));
 });
 self.addEventListener('notificationclick',event=>{
