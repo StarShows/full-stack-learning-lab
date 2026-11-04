@@ -15,7 +15,13 @@ export async function startServer(config = readConfig()) {
   const authLimit = createRateLimiter({ maximum: 20 });
   const server = http.createServer(async (incoming, outgoing) => {
     try {
-      const path = new URL(incoming.url, config.origin).pathname;
+      const normalizedUrl = new URL(incoming.url, config.origin);
+      const externalPath = normalizedUrl.pathname;
+      // Passenger can supply either the public mounted path or the already-unmounted path.
+      if (config.basePath && (externalPath === config.basePath || externalPath.startsWith(config.basePath + '/'))) {
+        normalizedUrl.pathname = externalPath.slice(config.basePath.length) || '/';
+      }
+      const path = normalizedUrl.pathname;
       if (incoming.headers.host !== new URL(config.origin).host && !['/health/live', '/health/ready'].includes(path)) {
         outgoing.writeHead(421);outgoing.end('Unexpected host.');return;
       }
@@ -32,7 +38,7 @@ export async function startServer(config = readConfig()) {
       }
       const controller = new AbortController();
       outgoing.on('close', () => { if (!outgoing.writableEnded) controller.abort(); });
-      const request = new Request(new URL(incoming.url, config.origin), {
+      const request = new Request(normalizedUrl, {
         method: incoming.method, headers: incoming.headers, signal: controller.signal,
         ...(!['GET', 'HEAD'].includes(incoming.method) ? { body: Buffer.concat(chunks) } : {}),
       });

@@ -107,3 +107,7 @@ Original practice material only. Close the app before a real proctored assessmen
 ## Learning rhythm
 
 Open **Learning rhythm** for contextual tips, optional sounds, calm motion and account-specific reminder suggestions. Self-hosted HTTPS deployments include opt-in Web Push with quiet hours and frequency limits. See [reminder setup and behavior](docs/reminders.md).
+
+## Namecheap deployment
+
+Source verification runs in `.github/workflows/ci.yml`. An independent, approval-gated workflow for staged Namecheap releases is in `.github/workflows/deploy-namecheap.yml`. See [Namecheap CI/CD setup](docs/namecheap-cicd.md). Production cutover is deliberately disabled until the destination cPanel Node.js application and database are verified; staging never replaces the existing application.

@@ -26,9 +26,9 @@ export async function verifyIdentity(provider, encoded, nonce, clientId, resolve
   return payload;
 }
 export function createAuth({ db, config, fetcher = fetch, verify = verifyIdentity }) {
-  const sessionName = config.secure ? '__Host-lab_session' : 'lab_session';
-  const flowName = config.secure ? '__Host-lab_flow' : 'lab_flow';
-  const cookie = (name, value, seconds, sameSite = 'Lax') => `${name}=${value}; Path=/; HttpOnly; SameSite=${sameSite}; Max-Age=${seconds}${config.secure ? '; Secure' : ''}`;
+  const sessionName = config.secure ? (config.basePath ? '__Secure-lab_session' : '__Host-lab_session') : 'lab_session';
+  const flowName = config.secure ? (config.basePath ? '__Secure-lab_flow' : '__Host-lab_flow') : 'lab_flow';
+  const cookie = (name, value, seconds, sameSite = 'Lax') => `${name}=${value}; Path=${config.basePath || '/'}; HttpOnly; SameSite=${sameSite}; Max-Age=${seconds}${config.secure ? '; Secure' : ''}`;
   const redirect = (location, cookies = []) => {
     const headers = new Headers({ Location: location, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
     cookies.forEach(c => headers.append('Set-Cookie', c));
@@ -74,7 +74,7 @@ export function createAuth({ db, config, fetcher = fetch, verify = verifyIdentit
     const provider = match[1], callback = Boolean(match[2]);
     if (!config.providers[provider]) return new Response('This sign-in provider is not configured.', { status: 503 });
     const settings = config[provider], endpoints = providers[provider];
-    const callbackUrl = config.origin + `/auth/${provider}/callback`;
+    const callbackUrl = config.origin + (config.basePath || '') + `/auth/${provider}/callback`;
     cleanup();
     if (!callback) {
       if (request.method !== 'GET') return new Response('Method not allowed', { status: 405 });
@@ -92,12 +92,12 @@ export function createAuth({ db, config, fetcher = fetch, verify = verifyIdentit
     if (provider === 'apple' && !request.headers.get('content-type')?.startsWith('application/x-www-form-urlencoded')) return new Response('Invalid callback', { status: 415 });
     const values = provider === 'apple' ? new URLSearchParams(await request.text()) : url.searchParams;
     const state = values.get('state') || '', browser = cookieValue(request, flowName);
-    if (!/^[A-Za-z0-9_-]{43}$/.test(state) || !/^[A-Za-z0-9_-]{43}$/.test(browser)) return redirect('/?auth_error=invalid_state');
+    if (!/^[A-Za-z0-9_-]{43}$/.test(state) || !/^[A-Za-z0-9_-]{43}$/.test(browser)) return redirect((config.basePath || '') + '/?auth_error=invalid_state');
     // Consume a flow once, bound to both the originating browser and provider.
     const flow = db.prepare('DELETE FROM oauth_transactions WHERE state_hash=? AND provider=? AND browser_hash=? AND expires_at>? RETURNING *').get(hash(state), provider, hash(browser), Date.now());
     const clear = cookie(flowName, '', 0, provider === 'apple' ? 'None' : 'Lax');
-    if (!flow) return redirect('/?auth_error=invalid_state', [clear]);
-    if (values.has('error') || !values.get('code')) return redirect('/?auth_error=cancelled', [clear]);
+    if (!flow) return redirect((config.basePath || '') + '/?auth_error=invalid_state', [clear]);
+    if (values.has('error') || !values.get('code')) return redirect((config.basePath || '') + '/?auth_error=cancelled', [clear]);
     try {
       const body = new URLSearchParams({ grant_type: 'authorization_code', code: values.get('code'), redirect_uri: callbackUrl, client_id: settings.clientId, client_secret: await clientSecret(provider) });
       if (provider === 'google') body.set('code_verifier', flow.verifier);
@@ -110,10 +110,10 @@ export function createAuth({ db, config, fetcher = fetch, verify = verifyIdentit
       db.prepare('INSERT INTO users VALUES (?,?,?,?,?,?) ON CONFLICT(provider,provider_subject) DO UPDATE SET email=CASE WHEN excluded.email <> \'\' THEN excluded.email ELSE users.email END').run(randomUUID(), provider, identity.sub, email, name, Date.now());
       // Email addresses never link identities across providers implicitly.
       const user = db.prepare('SELECT id FROM users WHERE provider=? AND provider_subject=?').get(provider, identity.sub);
-      return redirect('/', [clear, issueSession(user.id, cookieValue(request, sessionName))]);
+      return redirect((config.basePath || '') + '/', [clear, issueSession(user.id, cookieValue(request, sessionName))]);
     } catch {
       // Do not log codes, identity tokens, provider responses, or secrets.
-      return redirect('/?auth_error=signin_failed', [clear]);
+      return redirect((config.basePath || '') + '/?auth_error=signin_failed', [clear]);
     }
   }
   return { getUser, handle, issueSession, sessionName, cleanup };

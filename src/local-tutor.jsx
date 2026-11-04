@@ -1,10 +1,11 @@
+import { appPath } from './base-path.js';
 import React, { useEffect, useRef, useState } from 'react';
 
 export default function LocalTutor({ lesson, code }) {
   const [open, setOpen] = useState(false), [question, setQuestion] = useState(''), [answer, setAnswer] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [history, setHistory] = useState([]), [local, setLocal] = useState(null);
-  useEffect(() => { fetch('/api/tutor/status').then(r => r.json()).then(s => setLocal(s.local !== false)).catch(() => {}); }, []);
+  useEffect(() => { fetch(appPath('/api/tutor/status')).then(r => r.json()).then(s => setLocal(s.local !== false)).catch(() => {}); }, []);
   const controller = useRef();
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => { controller.current?.abort();setQuestion('');setHistory([]);setAnswer('');setError('');setBusy(false); }, [lesson.id]);
@@ -13,7 +14,7 @@ export default function LocalTutor({ lesson, code }) {
     const current = new AbortController();controller.current = current;
     setBusy(true);setError('');setAnswer('');
     try {
-      const response = await fetch('/api/tutor', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, signal: current.signal, body: JSON.stringify({ lessonId: lesson.id, code, question, history }) });
+      const response = await fetch(appPath('/api/tutor'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, signal: current.signal, body: JSON.stringify({ lessonId: lesson.id, code, question, history }) });
       const body = await response.json();if (!response.ok) throw Error(body.error || 'The tutor could not respond.');
       setAnswer(body.answer);setHistory(h => { const next = [...h, { role: 'user', content: question }, { role: 'assistant', content: body.answer }].slice(-4);while (JSON.stringify(next).length > 24000) next.splice(0, 2);return next; });setQuestion('');
     } catch (e) { if (e.name !== 'AbortError') setError(e.message); }

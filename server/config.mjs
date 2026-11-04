@@ -11,6 +11,10 @@ export function readConfig(env = process.env) {
       (url.protocol !== 'https:' && !(loopback && url.protocol === 'http:'))) {
     throw new Error('APP_URL must be an HTTPS origin, or HTTP on localhost for development.');
   }
+  const basePath = env.APP_BASE_PATH || '';
+  if (basePath && (basePath.length > 128 || !/^\/[a-zA-Z0-9-]+(?:\/[a-zA-Z0-9-]+)*$/.test(basePath))) {
+    throw new Error('APP_BASE_PATH must be empty or a safe absolute URL path without a trailing slash.');
+  }
   const ollama = new URL(env.OLLAMA_URL || 'http://ollama:11434');
   if (!['http:', 'https:'].includes(ollama.protocol) || ollama.username || ollama.password ||
       !['localhost', '127.0.0.1', '[::1]', 'ollama', 'host.docker.internal'].includes(ollama.hostname) ||
@@ -40,7 +44,7 @@ export function readConfig(env = process.env) {
   }
   return {
     llmMode, llmEndpoint, llmToken, llmModel,
-    origin: url.origin, secure: url.protocol === 'https:', google, apple,
+    origin: url.origin, basePath, secure: url.protocol === 'https:', google, apple,
     providers: { google: googleConfigured, apple: appleConfigured },
     dbPath: env.DATABASE_PATH || './data/lab.sqlite',
     port: Number(env.PORT || 13000), host: env.BIND_ADDRESS || '127.0.0.1',
